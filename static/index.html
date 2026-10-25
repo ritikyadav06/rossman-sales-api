@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rossmann sales forecast</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f2f5f3;--panel:#fff;--ink:#14302d;--muted:#566c68;--line:#d3ddd9;--accent:#0e7c66;--soft:#bfe3d9;--note:#7a5200;--err:#a4262c;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--paper:#0e1a18;--panel:#14241f;--ink:#e5f0ed;--muted:#93aaa4;--line:#27403a;--accent:#3fbf9f;--soft:#1f4a40;--note:#e0b45a;--err:#ff8a8f;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding:28px 20px 40px}
+h1{font-size:1.5rem;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+.lead{margin:0 0 28px;color:var(--muted);max-width:56ch}
+.grid{display:grid;grid-template-columns:288px 1fr;gap:36px;align-items:start}
+@media (max-width:780px){.grid{grid-template-columns:1fr;gap:28px}}
+form{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px;display:grid;gap:16px}
+label,legend{font-size:.9rem;font-weight:500}
+input[type=number],input[type=date],select{width:100%;margin-top:6px;padding:10px 12px;font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:6px}
+fieldset{border:0;padding:0;margin:0;display:grid;gap:10px}
+.check{display:flex;align-items:center;gap:10px;font-weight:400}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+button{font:inherit;font-weight:700;padding:12px 16px;border:0;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer}
+@media (prefers-color-scheme:dark){button{color:#06201a}}
+button:disabled{opacity:.6;cursor:progress}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.ctx{margin:0;color:var(--muted);font-weight:500}
+.big{margin:2px 0 0;font-size:clamp(3.4rem,10vw,6rem);font-weight:800;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.sub{margin:6px 0 0;color:var(--muted)}
+.note{margin:14px 0 0;color:var(--note);font-size:.92rem}
+.err{color:var(--err);font-weight:500}
+.chart{margin-top:30px}
+.chart h2{font-size:1rem;margin:0 0 2px}
+.chart p{margin:0 0 6px;color:var(--muted);font-size:.9rem}
+svg{width:100%;height:auto;display:block}
+.bar{fill:var(--soft)}.bar.first{fill:var(--accent)}
+.v{fill:var(--ink);font-size:13px;font-weight:700;text-anchor:middle}
+.d{fill:var(--muted);font-size:12px;text-anchor:middle}
+.base{stroke:var(--line);stroke-width:1}
+@media (prefers-reduced-motion:no-preference){.bar{transform-box:fill-box;transform-origin:bottom;animation:grow .45s ease-out}@keyframes grow{from{transform:scaleY(0)}}}
+.model{margin-top:32px;padding-top:16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px 28px;font-size:.9rem}
+.model div{min-width:120px}.model dt{color:var(--muted)}.model dd{margin:0;font-weight:700}
+footer{margin-top:20px;font-size:.9rem;color:var(--muted)}footer a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Rossmann sales forecast</h1>
+  <p class="lead">Pick one of 1,115 Rossmann drugstores and a day. The model estimates that day's sales in euros, plus the week that follows.</p>
+  <div class="grid">
+    <form id="form">
+      <div><label for="store">Store number (1 to 1115)</label>
+        <input id="store" type="number" min="1" max="1115" value="1" required></div>
+      <div><label for="date">First day to forecast</label>
+        <input id="date" type="date" value="2015-08-03" required></div>
+      <div><label for="holiday">State holiday</label>
+        <select id="holiday"><option value="0">None</option><option value="a">Public holiday</option><option value="b">Easter</option><option value="c">Christmas</option></select></div>
+      <fieldset><legend>Conditions</legend>
+        <label class="check"><input id="open" type="checkbox" checked> Store is open</label>
+        <label class="check"><input id="promo" type="checkbox" checked> Promotion running</label>
+        <label class="check"><input id="school" type="checkbox"> School holiday</label></fieldset>
+      <button id="go" type="submit">Get forecast</button>
+    </form>
+    <main>
+      <div id="out" aria-live="polite"><p class="ctx">Loading the first forecast...</p></div>
+      <div id="chart" class="chart" hidden>
+        <h2>The next 7 days</h2>
+        <p>Assumes the same promotion and holiday settings on every day.</p>
+        <div id="svg"></div>
+      </div>
+      <dl id="model" class="model" hidden></dl>
+    </main>
+  </div>
+  <footer>Use the <a href="/docs">API documentation</a> to call the model from code.</footer>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const eur = new Intl.NumberFormat('en-IE', {style: 'currency', currency: 'EUR', maximumFractionDigits: 0});
+let trained = null;
+
+const addDays = (iso, n) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+};
+const fmt = (iso, o) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', {timeZone: 'UTC', ...o});
+
+function setOut(html) { $('out').innerHTML = html; }
+function fail(msg) { $('chart').hidden = true; setOut('<p class="ctx err"></p>'); $('out').firstChild.textContent = msg; }
+
+function explain(status, body, store) {
+  if (status === 404) return `Store ${store} is not in the Rossmann data. Use a number from 1 to 1115.`;
+  if (status === 422) return (body.detail && body.detail[0] && body.detail[0].msg) || 'Check the inputs and try again.';
+  return `The server returned an error (${status}). Try again in a moment.`;
+}
+
+function drawChart(preds) {
+  const max = Math.max(...preds.map(p => p.predicted_sales_eur), 1), base = 190, h = 150;
+  let s = '<svg viewBox="0 0 560 235" role="img" aria-label="Forecast sales for the next 7 days">';
+  s += `<line class="base" x1="20" x2="540" y1="${base}" y2="${base}"/>`;
+  preds.forEach((p, i) => {
+    const x = 36 + i * 72, v = p.predicted_sales_eur, bh = Math.max(v / max * h, v > 0 ? 2 : 0);
+    s += `<rect class="bar${i ? '' : ' first'}" x="${x}" y="${base - bh}" width="52" height="${bh}" rx="3"/>`;
+    s += `<text class="v" x="${x + 26}" y="${base - bh - 8}">${v > 0 ? eur.format(v) : 'closed'}</text>`;
+    s += `<text class="d" x="${x + 26}" y="210">${fmt(p.Date, {weekday: 'short'})}</text>`;
+    s += `<text class="d" x="${x + 26}" y="226">${fmt(p.Date, {day: 'numeric', month: 'short'})}</text>`;
+  });
+  $('svg').innerHTML = s + '</svg>';
+}
+
+function show(preds, store) {
+  const p = preds[0], when = fmt(p.Date, {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'});
+  let note = '';
+  if (trained && p.Open) {
+    if (p.Date > trained.end) note = `The training data ends on ${trained.end}, so this is a forecast beyond what the model has seen.`;
+    else if (p.Date < trained.start) note = `The training data starts on ${trained.start}. Dates before that are outside what the model has seen.`;
+  }
+  const warns = [...new Set(preds.flatMap(x => x.warnings || []))];
+  setOut(`<p class="ctx">Store ${store}, ${when}</p>
+    <p class="big">${eur.format(p.predicted_sales_eur)}</p>
+    <p class="sub">${p.Open ? 'expected sales that day' : 'store closed, so no sales'}</p>` +
+    [note, ...warns].filter(Boolean).map(() => '<p class="note"></p>').join(''));
+  [note, ...warns].filter(Boolean).forEach((t, i) => { $('out').querySelectorAll('.note')[i].textContent = t; });
+  drawChart(preds);
+  $('chart').hidden = false;
+}
+
+async function run() {
+  const store = +$('store').value, date = $('date').value;
+  if (!date) return fail('Pick a date to forecast.');
+  const base = {Open: +$('open').checked, Promo: +$('promo').checked, StateHoliday: $('holiday').value, SchoolHoliday: +$('school').checked};
+  const items = [...Array(7)].map((_, i) => ({Store: store, Date: addDays(date, i), ...base}));
+  $('go').disabled = true;
+  const hint = setTimeout(() => setOut('<p class="ctx">Waking the server. On the free tier this can take up to a minute.</p>'), 4000);
+  try {
+    const r = await fetch('/predict/batch', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({items})});
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) return fail(explain(r.status, body, store));
+    show(body.predictions, store);
+  } catch (e) {
+    fail('Cannot reach the API. Check your connection and try again.');
+  } finally { clearTimeout(hint); $('go').disabled = false; }
+}
+
+async function loadModel() {
+  try {
+    const c = await (await fetch('/model-info')).json(), v = c.validation || {}, r = c.training_data_range;
+    if (r) trained = {start: r.start, end: r.end};
+    const rows = [['Model version', c.model_version], ['Training data', r && `${r.start} to ${r.end}`],
+      ['Validation error (RMSPE)', v.rmspe], ['Simple baseline (RMSPE)', v.baseline_rmspe]].filter(x => x[1] !== undefined && x[1] !== null);
+    if (!rows.length) return;
+    $('model').innerHTML = rows.map(() => '<div><dt></dt><dd></dd></div>').join('');
+    $('model').querySelectorAll('div').forEach((d, i) => { d.children[0].textContent = rows[i][0]; d.children[1].textContent = rows[i][1]; });
+    $('model').hidden = false;
+  } catch (e) { /* the forecast still works without the model card */ }
+}
+
+$('form').addEventListener('submit', e => { e.preventDefault(); run(); });
+loadModel().then(run);
+</script>
+</body>
+</html>

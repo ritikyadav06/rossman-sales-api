@@ -1,0 +1,14 @@
+{
+  "model_version": "1.0.0",
+  "model": "XGBoost in sklearn pipeline, logqp target",
+  "training_data_range": {
+    "start": "2013-01-01",
+    "end": "2015-07-31"
+  },
+  "validation": {
+    "Holdout": "last 6 weeks",
+    "rmspe": 0.1458,
+    "mae_eur": 715.8,
+    "baseline_rmspe": 0.2356
+  }
+}
