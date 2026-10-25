@@ -1,0 +1,7 @@
+   services:
+     - type: web
+       name: rossmann-sales-api
+       runtime: docker
+       plan: free
+       healthCheckPath: /health
+       autoDeployTrigger: commit
