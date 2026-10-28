@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 
   state["model"] = joblib.load(f"{ART}/model.joblib")
   state["stores_raw"] = pd.read_csv(f"{ART}/stores.csv")
-  state["store_day_avg"] = pd.read_csv(f"{ART}/store_day_avg")
+  state["store_day_avg"] = pd.read_csv(f"{ART}/store_day_avg.csv")
   state["columns"] = list(state["model"].feature_names_in_)
   with open(f"{ART}/model_card.json") as f:
     state["card"] = json.load(f)
