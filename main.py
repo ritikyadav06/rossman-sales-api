@@ -136,9 +136,6 @@ def build_ui():
   try:
     def forecast(store, day, promo, is_open, stateholiday, schoolholiday):
       try:
-        if isinstance(day, str):
-          day = day.split(" ")[0]
-          
         item = PredictRequest(
           Store=int(store),
           Date=day,
@@ -155,7 +152,7 @@ def build_ui():
     return gr.Interface(
         forecast,
         [gr.Number(value=1, precision=0, label="Store (1 to 1115)"),
-         gr.Date(value="2015-05-04", label="Date (YYYY-MM-DD)"),
+         gr.Textbox(value="2015-05-04", label="Date (YYYY-MM-DD)", placeholder="YYYY-MM-DD"),
          gr.Checkbox(True, label="Promotion running"),
          gr.Checkbox(True, label="Store is Open"),
          gr.Checkbox(False, label="School Holiday"),
