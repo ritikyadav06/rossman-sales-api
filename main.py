@@ -134,7 +134,7 @@ def build_ui():
     log.warning("gradio is not installed; serving the API only")
     return None
   try:
-    def forecast(store, day, promo, is_open, stateholiday, schoolholiday):
+    def forecast(store, day, promo, is_open, schoolholiday, stateholiday):
       try:
         item = PredictRequest(
           Store=int(store),
